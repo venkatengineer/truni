@@ -57,33 +57,43 @@ pub struct StorageConfig {
 
 impl Default for TruniConfig {
     fn default() -> Self {
-        let base_dir = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("/home/venkatengineer"))
-            .join(".local/share/truni");
+        let base_dir = {
+            let mnt_e = PathBuf::from("/mnt/e/truni");
+            if mnt_e.exists() {
+                mnt_e
+            } else {
+                dirs::home_dir()
+                    .unwrap_or_else(|| PathBuf::from("/home/venkatengineer"))
+                    .join(".local/share/truni")
+            }
+        };
 
         let whisper_model = {
+            let p0 = PathBuf::from("/mnt/e/truni/models/whisper/ggml-tiny.en.bin");
             let p1 = base_dir.join("models/whisper/ggml-tiny.en.bin");
             let p2 = PathBuf::from("/mnt/d/truni/models/whisper/ggml-tiny.en.bin");
-            if p1.exists() { p1 } else { p2 }
+            if p0.exists() { p0 } else if p1.exists() { p1 } else { p2 }
         };
 
         let piper_model = {
+            let p0 = PathBuf::from("/mnt/e/truni/models/piper/en_US-lessac-medium.onnx");
             let p1 = base_dir.join("models/piper/en_US-lessac-medium.onnx");
             let p2 = PathBuf::from("/mnt/d/truni/models/piper/en_US-lessac-medium.onnx");
-            if p1.exists() { p1 } else { p2 }
+            if p0.exists() { p0 } else if p1.exists() { p1 } else { p2 }
         };
 
         let piper_config = {
+            let p0 = PathBuf::from("/mnt/e/truni/models/piper/en_US-lessac-medium.onnx.json");
             let p1 = base_dir.join("models/piper/en_US-lessac-medium.onnx.json");
             let p2 = PathBuf::from("/mnt/d/truni/models/piper/en_US-lessac-medium.onnx.json");
-            if p1.exists() { p1 } else { p2 }
+            if p0.exists() { p0 } else if p1.exists() { p1 } else { p2 }
         };
 
         Self {
             ai: AiConfig {
                 provider: "ollama".to_string(),
                 base_url: "http://127.0.0.1:11434".to_string(),
-                model: "qwen2.5:1.5b".to_string(),
+                model: "qwen2.5:7b".to_string(),
                 fallback_model: Some("qwen2.5:1.5b".to_string()),
                 temperature: 0.2,
                 context_limit: 4096,
@@ -113,8 +123,9 @@ impl Default for TruniConfig {
             storage: StorageConfig {
                 db_path: base_dir.join("truni_memory.sqlite"),
                 allowed_directories: vec![
-                    dirs::home_dir().unwrap_or_else(|| PathBuf::from("/home/venkatengineer")),
+                    PathBuf::from("/mnt/e/truni"),
                     PathBuf::from("/mnt/d"),
+                    dirs::home_dir().unwrap_or_else(|| PathBuf::from("/home/venkatengineer")),
                 ],
                 require_approval_for_deletion: true,
             },
