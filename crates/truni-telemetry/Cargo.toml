@@ -1,0 +1,15 @@
+[package]
+name = "truni-telemetry"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+truni-core = { path = "../truni-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sysinfo = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+regex = { workspace = true }

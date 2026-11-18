@@ -1,0 +1,13 @@
+[package]
+name = "truni-memory"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+truni-core = { path = "../truni-core" }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }

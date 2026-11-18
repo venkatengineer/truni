@@ -1,0 +1,13 @@
+[package]
+name = "truni-spaceship"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+truni-core = { path = "../truni-core" }
+glow = { workspace = true }
+glam = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }

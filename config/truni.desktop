@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=TRUNI
+GenericName=Spaceship AI Assistant
+Comment=Autonomous Personal AI and Spatial Spaceship Intelligence System for Linux
+Exec=/mnt/d/truni/target/debug/truni overlay
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+Categories=Utility;System;AudioVideo;
+Keywords=AI;Assistant;Voice;Spaceship;Telemetry;

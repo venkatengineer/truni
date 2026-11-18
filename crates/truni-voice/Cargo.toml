@@ -1,0 +1,13 @@
+[package]
+name = "truni-voice"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+truni-core = { path = "../truni-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }

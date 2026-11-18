@@ -1,0 +1,19 @@
+[package]
+name = "truni-agent"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+truni-core = { path = "../truni-core" }
+truni-telemetry = { path = "../truni-telemetry" }
+truni-tools = { path = "../truni-tools" }
+truni-memory = { path = "../truni-memory" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+dirs = { workspace = true }
+chrono = { workspace = true }

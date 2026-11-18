@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/truni-core",
+    "crates/truni-telemetry",
+    "crates/truni-spaceship",
+    "crates/truni-memory",
+    "crates/truni-tools",
+    "crates/truni-agent",
+    "crates/truni-voice",
+    "crates/truni-overlay",
+]
+
+[workspace.dependencies]
+tokio = { version = "1.43", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rusqlite = { version = "0.33", features = ["bundled"] }
+gtk4 = "0.11"
+gtk4-layer-shell = "0.8"
+glow = "0.18"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+thiserror = "2.0"
+sysinfo = "0.33"
+walkdir = "2.5"
+tempfile = "3.17"
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+dirs = "6.0"
+regex = "1.11"
+glam = "0.29"
+clap = { version = "4.5", features = ["derive"] }
+urlencoding = "2.1"
