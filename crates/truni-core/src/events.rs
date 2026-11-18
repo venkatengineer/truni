@@ -150,6 +150,8 @@ pub struct TaskStep {
     pub index: usize,
     pub title: String,
     pub tool: String,
+    #[serde(default)]
+    pub command: Option<String>,
     pub status: StepStatus,
     pub log: Option<String>,
 }

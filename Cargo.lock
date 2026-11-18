@@ -77,17 +77,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
-name = "async-trait"
-version = "0.1.92"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.10",
-]
-
-[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2270,7 +2259,6 @@ name = "truni-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "chrono",
  "dirs",
  "reqwest",
@@ -2282,6 +2270,7 @@ dependencies = [
  "truni-memory",
  "truni-telemetry",
  "truni-tools",
+ "urlencoding",
 ]
 
 [[package]]
@@ -2301,8 +2290,6 @@ dependencies = [
  "chrono",
  "rusqlite",
  "serde",
- "serde_json",
- "tracing",
 ]
 
 [[package]]
@@ -2336,12 +2323,9 @@ dependencies = [
 name = "truni-spaceship"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "glam",
  "glow",
  "serde",
- "serde_json",
- "tracing",
  "truni-core",
 ]
 
@@ -2349,13 +2333,10 @@ dependencies = [
 name = "truni-telemetry"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "serde",
  "serde_json",
  "sysinfo",
- "tokio",
- "tracing",
  "truni-core",
 ]
 
@@ -2369,7 +2350,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
- "truni-core",
  "urlencoding",
  "walkdir",
 ]
@@ -2381,9 +2361,7 @@ dependencies = [
  "anyhow",
  "libc",
  "serde",
- "serde_json",
  "tokio",
- "tracing",
  "truni-core",
 ]
 

@@ -3,10 +3,9 @@ use crate::vad::VadDetector;
 use crate::wake::WakeWordDetector;
 use crate::whisper::WhisperTranscriber;
 use anyhow::{bail, Result};
+use std::io::Read;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tokio::time::sleep;
 use truni_core::config::VoiceConfig;
 
 #[derive(Clone)]
@@ -68,7 +67,7 @@ impl VoiceService {
         self.speak("Systems online. How can I help?")
     }
 
-    pub async fn record_and_transcribe(&self, max_duration_secs: u64) -> Result<String> {
+    pub async fn record_and_transcribe(&self, _max_duration_secs: u64) -> Result<String> {
         let wav_path = std::env::temp_dir().join("truni_mic_capture.wav");
         if wav_path.exists() {
             let _ = std::fs::remove_file(&wav_path);
@@ -87,7 +86,7 @@ impl VoiceService {
             .args(["set-volume", "@DEFAULT_AUDIO_SOURCE@", "1.0"])
             .output();
 
-        // Use pw-record (PipeWire) or arecord (ALSA) to capture 16kHz mono WAV
+        // Use pw-record (PipeWire) or arecord (ALSA) to stream 16kHz mono PCM directly to stdout
         let (rec_cmd, args) = if which_cmd("pw-record") {
             (
                 "pw-record",
@@ -98,7 +97,7 @@ impl VoiceService {
                     "1",
                     "--format",
                     "s16",
-                    wav_path.to_str().unwrap(),
+                    "-",
                 ],
             )
         } else {
@@ -112,19 +111,19 @@ impl VoiceService {
                     "-f",
                     "S16_LE",
                     "-t",
-                    "wav",
-                    wav_path.to_str().unwrap(),
+                    "raw",
+                    "-",
                 ],
             )
         };
 
         let child = Command::new(rec_cmd)
             .args(&args)
-            .stdout(Stdio::null())
+            .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn();
 
-        let child = match child {
+        let mut child = match child {
             Ok(c) => c,
             Err(e) => {
                 let mut listening_lock = self.is_listening.lock().unwrap();
@@ -133,40 +132,84 @@ impl VoiceService {
             }
         };
 
-        {
-            let mut rec_lock = self.recording_process.lock().unwrap();
-            *rec_lock = Some(child);
-        }
+        let stdout = child.stdout.take().expect("Child stdout available");
 
-        // Wait for max_duration_secs while recording
-        sleep(Duration::from_secs(max_duration_secs)).await;
+        // Run dynamic VAD capture in a blocking thread so it doesn't block the async runtime
+        let capture_result = tokio::task::spawn_blocking(move || {
+            let mut reader = stdout;
+            let mut pcm_buffer = Vec::with_capacity(16000 * 2 * 10);
+            let mut frame = [0u8; 2048]; // 1024 samples = 64ms at 16kHz
+            let mut speech_detected = false;
+            let mut silence_frames = 0;
+            let mut initial_silence_frames = 0;
 
-        // Cleanly stop recording with SIGINT so WAV header is properly closed
-        {
-            let mut rec_lock = self.recording_process.lock().unwrap();
-            if let Some(mut child) = rec_lock.take() {
-                unsafe {
-                    libc::kill(child.id() as i32, libc::SIGINT);
+            loop {
+                let n = match reader.read(&mut frame) {
+                    Ok(0) => break,
+                    Ok(bytes_read) => bytes_read,
+                    Err(_) => break,
+                };
+
+                pcm_buffer.extend_from_slice(&frame[..n]);
+
+                let samples: Vec<i16> = frame[..n]
+                    .chunks_exact(2)
+                    .map(|c| i16::from_le_bytes([c[0], c[1]]))
+                    .collect();
+
+                if !samples.is_empty() {
+                    let sum_sq: f64 = samples.iter().map(|&s| (s as f64) * (s as f64)).sum();
+                    let rms = (sum_sq / (samples.len() as f64)).sqrt() / 32768.0;
+
+                    if rms > 0.012 {
+                        speech_detected = true;
+                        silence_frames = 0;
+                    } else if speech_detected {
+                        silence_frames += 1;
+                        // User has stopped speaking: wait for 22 frames (~1.4 seconds of sustained silence)
+                        if silence_frames >= 22 {
+                            break;
+                        }
+                    } else {
+                        initial_silence_frames += 1;
+                        // If user doesn't start speaking within ~5.8s, stop
+                        if initial_silence_frames >= 90 {
+                            break;
+                        }
+                    }
                 }
-                let _ = child.wait();
+
+                // Generous safety timeout: 25 seconds of speech
+                if pcm_buffer.len() >= 16000 * 2 * 25 {
+                    break;
+                }
             }
-        }
+
+            // Cleanly terminate recording process with SIGINT
+            unsafe {
+                libc::kill(child.id() as i32, libc::SIGINT);
+            }
+            let _ = child.wait();
+
+            (speech_detected, pcm_buffer)
+        })
+        .await?;
 
         {
             let mut listening_lock = self.is_listening.lock().unwrap();
             *listening_lock = false;
         }
 
-        // Verify audio file exists and has data
-        if !wav_path.exists() {
-            bail!("Audio capture failed: no output file generated at {:?}", wav_path);
-        }
+        let (speech_detected, pcm_data) = capture_result;
 
-        let metadata = std::fs::metadata(&wav_path)?;
-        if metadata.len() < 1024 {
-            // Empty or virtually silent audio
+        if !speech_detected || pcm_data.len() < 16000 {
+            // No speech detected
             return Ok(String::new());
         }
+
+        // Write valid RIFF WAV with standard 44-byte header
+        let wav_bytes = encode_wav(&pcm_data, 16000);
+        std::fs::write(&wav_path, &wav_bytes)?;
 
         // Transcribe with Whisper
         let transcription = self.whisper.transcribe(&wav_path)?;
@@ -192,4 +235,28 @@ fn which_cmd(cmd: &str) -> bool {
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
+}
+
+fn encode_wav(pcm_data: &[u8], sample_rate: u32) -> Vec<u8> {
+    let mut wav = Vec::with_capacity(44 + pcm_data.len());
+    let data_len = pcm_data.len() as u32;
+    let riff_len = data_len + 36;
+    let byte_rate = sample_rate * 2;
+
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&riff_len.to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+    wav.extend_from_slice(b"fmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&sample_rate.to_le_bytes());
+    wav.extend_from_slice(&byte_rate.to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    wav.extend_from_slice(pcm_data);
+
+    wav
 }

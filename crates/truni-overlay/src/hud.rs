@@ -7,6 +7,17 @@ use truni_core::events::{OverlayState, StepStatus, TaskPlan, TelemetrySnapshot};
 pub struct HudUI {
     pub root_box: GtkBox,
     pub stack: Stack,
+    // Canopy Header
+    pub chrono_time_lbl: Label,
+    pub top_telemetry_lbl: Label,
+    pub dismiss_btn: Button,
+    // Left Bulkhead Gauges
+    pub side_cpu_lbl: Label,
+    pub side_ram_lbl: Label,
+    pub side_fan_lbl: Label,
+    pub side_disk_lbl: Label,
+    pub side_power_lbl: Label,
+    pub side_devices_lbl: Label,
     // Page Standby
     pub standby_status_lbl: Label,
     pub standby_telemetry_lbl: Label,
@@ -58,33 +69,43 @@ impl HudUI {
             .build();
 
         let title_lbl = Label::builder()
-            .label("🛸 TRUNI // SOLARIS SPATIAL COMMAND")
+            .label("🛸 SOLARIS BRIDGE // TRUNI SPATIAL AI")
             .css_classes(["hud-header"])
-            .hexpand(true)
             .xalign(0.0)
             .build();
 
-        let core_status_lbl = Label::builder()
-            .label("⬡ CORE: ONLINE")
+        let chrono_time_lbl = Label::builder()
+            .label("CHRONO: NOMINAL")
+            .css_classes(["hud-pill"])
+            .build();
+
+        let top_telemetry_lbl = Label::builder()
+            .label("[  CPU: --% ] [ 󰍛 RAM: --M ] [ 󰈐 FANS: -- RPM ]")
             .css_classes(["hud-pill-green"])
+            .hexpand(true)
+            .xalign(0.5)
             .build();
 
         let nav_conv_btn = Button::with_label("⬡ COMM DECK [F2]");
-        let nav_task_btn = Button::with_label("⬡ MISSION OPS [F3]");
-        let nav_ship_btn = Button::with_label("⬡ 3D STARSHIP [F4]");
+        let nav_task_btn = Button::with_label("◈ MISSION OPS [F3]");
+        let nav_ship_btn = Button::with_label("⌬ 3D STARSHIP [F4]");
         let nav_standby_btn = Button::with_label("⬡ STANDBY [F1]");
+        let dismiss_btn = Button::with_label("✕ DISMISS [ESC]");
 
         nav_standby_btn.add_css_class("hud-nav-btn");
         nav_conv_btn.add_css_class("hud-nav-btn");
         nav_task_btn.add_css_class("hud-nav-btn");
         nav_ship_btn.add_css_class("hud-nav-btn-ship");
+        dismiss_btn.add_css_class("btn-danger");
 
         nav_box.append(&title_lbl);
-        nav_box.append(&core_status_lbl);
+        nav_box.append(&chrono_time_lbl);
+        nav_box.append(&top_telemetry_lbl);
         nav_box.append(&nav_conv_btn);
         nav_box.append(&nav_task_btn);
         nav_box.append(&nav_ship_btn);
         nav_box.append(&nav_standby_btn);
+        nav_box.append(&dismiss_btn);
 
         root_box.append(&nav_box);
 
@@ -132,8 +153,95 @@ impl HudUI {
         activation_box.append(&act_lbl);
         stack.add_named(&activation_box, Some("activation"));
 
-        // 3. STATE C: Conversation Page
+        // 3. STATE C: Conversation Page (2-Column Solaris Cockpit Layout)
         let conv_box = GtkBox::builder()
+            .orientation(Orientation::Horizontal)
+            .spacing(14)
+            .hexpand(true)
+            .vexpand(true)
+            .build();
+
+        // Left Bulkhead Avionics Instrumentation Sidebar
+        let bulkhead_box = GtkBox::builder()
+            .orientation(Orientation::Vertical)
+            .spacing(10)
+            .width_request(280)
+            .css_classes(["hud-panel", "bulkhead-sidebar"])
+            .build();
+
+        let side_title_lbl = Label::builder()
+            .label("⬡ AVIONICS TELEMETRY")
+            .css_classes(["hud-header"])
+            .xalign(0.0)
+            .build();
+
+        let side_status_lbl = Label::builder()
+            .label("FLIGHT DECK: ONLINE")
+            .css_classes(["hud-pill-green"])
+            .xalign(0.0)
+            .build();
+
+        let side_cpu_lbl = Label::builder()
+            .label(" CPU CORE // LOAD: --%\n  Freq: -- MHz | Temp: --°C")
+            .wrap(true)
+            .xalign(0.0)
+            .css_classes(["gauge-card"])
+            .build();
+
+        let side_ram_lbl = Label::builder()
+            .label("󰍛 MEMORY // USED: -- MB\n  Total: -- MB | Free: -- MB")
+            .wrap(true)
+            .xalign(0.0)
+            .css_classes(["gauge-card"])
+            .build();
+
+        let side_fan_lbl = Label::builder()
+            .label("󰈐 COOLING // -- RPM\n  Thermal State: Nominal")
+            .wrap(true)
+            .xalign(0.0)
+            .css_classes(["gauge-card"])
+            .build();
+
+        let side_disk_lbl = Label::builder()
+            .label("󰋊 STORAGE // -- GB FREE\n  Capacity: -- GB | Temp: --°C")
+            .wrap(true)
+            .xalign(0.0)
+            .css_classes(["gauge-card"])
+            .build();
+
+        let side_power_lbl = Label::builder()
+            .label("󰁹 POWER // --%\n  State: Nominal")
+            .wrap(true)
+            .xalign(0.0)
+            .css_classes(["gauge-card"])
+            .build();
+
+        let side_devices_lbl = Label::builder()
+            .label("󰒋 PERIPHERALS // -- NODES\n  Bus: USB / BT / Display")
+            .wrap(true)
+            .xalign(0.0)
+            .css_classes(["gauge-card"])
+            .build();
+
+        let side_footer_lbl = Label::builder()
+            .label("HOST: SOLARIS-ARCH\nKERNEL: Linux Zen 7.2")
+            .xalign(0.0)
+            .css_classes(["hud-pill"])
+            .vexpand(false)
+            .build();
+
+        bulkhead_box.append(&side_title_lbl);
+        bulkhead_box.append(&side_status_lbl);
+        bulkhead_box.append(&side_cpu_lbl);
+        bulkhead_box.append(&side_ram_lbl);
+        bulkhead_box.append(&side_fan_lbl);
+        bulkhead_box.append(&side_disk_lbl);
+        bulkhead_box.append(&side_power_lbl);
+        bulkhead_box.append(&side_devices_lbl);
+        bulkhead_box.append(&side_footer_lbl);
+
+        // Right Column: Holographic Chat & Terminal Command
+        let flight_deck_box = GtkBox::builder()
             .orientation(Orientation::Vertical)
             .spacing(10)
             .hexpand(true)
@@ -201,9 +309,12 @@ impl HudUI {
         input_box.append(&voice_btn);
         input_box.append(&send_btn);
 
-        conv_box.append(&chat_scroll);
-        conv_box.append(&chips_box);
-        conv_box.append(&input_box);
+        flight_deck_box.append(&chat_scroll);
+        flight_deck_box.append(&chips_box);
+        flight_deck_box.append(&input_box);
+
+        conv_box.append(&bulkhead_box);
+        conv_box.append(&flight_deck_box);
 
         stack.add_named(&conv_box, Some("conversation"));
 
@@ -343,6 +454,15 @@ impl HudUI {
         Self {
             root_box,
             stack,
+            chrono_time_lbl,
+            top_telemetry_lbl,
+            dismiss_btn,
+            side_cpu_lbl,
+            side_ram_lbl,
+            side_fan_lbl,
+            side_disk_lbl,
+            side_power_lbl,
+            side_devices_lbl,
             standby_status_lbl,
             standby_telemetry_lbl,
             chat_history_box,
@@ -434,11 +554,65 @@ impl HudUI {
         // Update 3D OpenGL spaceship
         self.viewport.update_telemetry(snap, dt);
 
-        // Update standby text
-        let cpu_temp = snap.cpu.temp_c.unwrap_or(0.0);
+        let now_str = chrono::Local::now().format("%H:%M:%S").to_string();
+        self.chrono_time_lbl.set_text(&format!("CHRONO: {}", now_str));
+
+        let cpu_temp = snap.cpu.temp_c.unwrap_or(45.0);
         let fan_rpm = snap.thermal.cpu_fan_rpm.unwrap_or(0);
         let bat_pct = snap.power.battery_percent.unwrap_or(100.0);
 
+        // Update top canopy telemetry
+        self.top_telemetry_lbl.set_text(&format!(
+            "[  CPU: {:.0}% ] [ 󰍛 RAM: {} MB ] [ 󰈐 FAN: {} RPM ] [ 󰁹 {:.0}% ]",
+            snap.cpu.usage_percent,
+            snap.memory.used_mb,
+            fan_rpm,
+            bat_pct
+        ));
+
+        // Update Left Bulkhead Gauges
+        self.side_cpu_lbl.set_text(&format!(
+            " CPU CORE // LOAD: {:.1}%\n  Freq: {:.0} MHz | Temp: {:.1}°C",
+            snap.cpu.usage_percent,
+            snap.cpu.avg_freq_mhz,
+            cpu_temp
+        ));
+
+        self.side_ram_lbl.set_text(&format!(
+            "󰍛 MEMORY // USED: {} MB\n  Total: {} MB | Free: {} MB",
+            snap.memory.used_mb,
+            snap.memory.total_mb,
+            snap.memory.available_mb
+        ));
+
+        self.side_fan_lbl.set_text(&format!(
+            "󰈐 COOLING // {} RPM\n  Thermal State: Nominal",
+            fan_rpm
+        ));
+
+        let disk_free = snap.disks.first().map(|d| d.free_gb).unwrap_or(0.0);
+        let disk_total = snap.disks.first().map(|d| d.total_gb).unwrap_or(0.0);
+        let disk_temp = snap.disks.first().and_then(|d| d.temp_c).unwrap_or(40.0);
+        self.side_disk_lbl.set_text(&format!(
+            "󰋊 STORAGE // {:.1} GB FREE\n  Capacity: {:.1} GB | Temp: {:.1}°C",
+            disk_free,
+            disk_total,
+            disk_temp
+        ));
+
+        let charging_str = if snap.power.is_charging.unwrap_or(false) { "Charging ⚡" } else { "Discharging 🔋" };
+        self.side_power_lbl.set_text(&format!(
+            "󰁹 POWER // {:.0}%\n  State: {}",
+            bat_pct,
+            charging_str
+        ));
+
+        self.side_devices_lbl.set_text(&format!(
+            "󰒋 PERIPHERALS // {} NODES\n  Bus: USB / BT / Display",
+            snap.devices.len()
+        ));
+
+        // Update standby text
         self.standby_telemetry_lbl.set_text(&format!(
             "Telemetry: CPU {:.1}% ({:.1}°C, {} RPM) | RAM {} MB / {} MB | NVMe {:.1}°C | Battery {:.0}% | Devices: {}",
             snap.cpu.usage_percent,
@@ -446,7 +620,7 @@ impl HudUI {
             fan_rpm,
             snap.memory.used_mb,
             snap.memory.total_mb,
-            snap.disks.first().and_then(|d| d.temp_c).unwrap_or(45.0),
+            disk_temp,
             bat_pct,
             snap.devices.len()
         ));

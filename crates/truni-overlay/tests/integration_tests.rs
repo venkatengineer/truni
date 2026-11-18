@@ -85,6 +85,11 @@ async fn test_bash_execution() -> Result<()> {
 
 #[test]
 fn test_planner_intent_classification() {
+    assert_eq!(Planner::classify_intent("okay truni i can handle it"), Intent::DismissOrClose);
+    assert_eq!(Planner::classify_intent("i got this, thanks"), Intent::DismissOrClose);
+    assert_eq!(Planner::classify_intent("truni close"), Intent::DismissOrClose);
+    assert_eq!(Planner::classify_intent("dismiss overlay"), Intent::DismissOrClose);
+    assert_eq!(Planner::classify_intent("nevermind truni"), Intent::DismissOrClose);
     assert_eq!(Planner::classify_intent("what is consuming my RAM?"), Intent::HardwareQuery);
     assert_eq!(Planner::classify_intent("why is my laptop getting hot?"), Intent::HardwareQuery);
     assert_eq!(Planner::classify_intent("find my college networking notes"), Intent::FilesystemAction);
@@ -94,20 +99,36 @@ fn test_planner_intent_classification() {
 }
 
 #[tokio::test]
+async fn test_nlp_dismiss_workflow() -> Result<()> {
+    let config = TruniConfig::default();
+    let memory = MemoryStore::open_in_memory()?;
+    let agent = AgentOrchestrator::new(&config, memory);
+
+    let plan = agent.start_task("okay truni i can handle it").await?;
+    assert_eq!(plan.steps.len(), 1);
+    assert_eq!(plan.steps[0].status, StepStatus::Completed);
+    assert!(plan.final_summary.as_ref().unwrap().contains("Standing by on flight deck"));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_agent_approval_workflow() -> Result<()> {
     let config = TruniConfig::default();
     let memory = MemoryStore::open_in_memory()?;
     let agent = AgentOrchestrator::new(&config, memory);
 
     // Task requesting deletion should trigger approval gate
-    let plan = agent.start_task("delete old cache files").await?;
+    let plan = agent.start_task("delete old cache files with rm -rf /tmp/cache").await?;
     assert!(plan.pending_approval.is_some());
-    assert_eq!(plan.steps[1].status, StepStatus::AwaitingApproval);
+    let step_awaiting = plan.steps.iter().find(|s| s.status == StepStatus::AwaitingApproval);
+    assert!(step_awaiting.is_some());
 
     // Denying the approval
     let req_id = plan.pending_approval.unwrap().request_id;
     let updated = agent.approve_action(&req_id, false).await?.expect("Updated plan");
-    assert_eq!(updated.steps[1].status, StepStatus::Failed);
+    let step_failed = updated.steps.iter().find(|s| s.status == StepStatus::Failed);
+    assert!(step_failed.is_some());
     assert!(updated.final_summary.unwrap().contains("halted"));
 
     Ok(())

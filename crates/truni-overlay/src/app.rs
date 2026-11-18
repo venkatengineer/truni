@@ -84,7 +84,13 @@ impl TruniApp {
             // Initial state
             hud.switch_state(OverlayState::Conversation);
 
-            // Connect Navigation Buttons
+            // Connect Navigation & Dismiss Buttons
+            {
+                let window_clone = window.clone();
+                hud.dismiss_btn.connect_clicked(move |_| {
+                    window_clone.close();
+                });
+            }
             {
                 let hud_clone = hud.clone();
                 hud.nav_standby_btn.connect_clicked(move |_| {
@@ -122,6 +128,7 @@ impl TruniApp {
                 let hud_clone = hud.clone();
                 let agent_clone = agent.clone();
                 let voice_clone = voice.clone();
+                let window_clone = window.clone();
 
                 let trigger_task = move |prompt: String| {
                     if prompt.trim().is_empty() {
@@ -134,6 +141,7 @@ impl TruniApp {
                     let hud_inner = hud_clone.clone();
                     let agent_inner = agent_clone.clone();
                     let voice_inner = voice_clone.clone();
+                    let window_inner = window_clone.clone();
 
                     glib::spawn_future_local(async move {
                         hud_inner.switch_state(OverlayState::TaskExecution);
@@ -143,6 +151,17 @@ impl TruniApp {
                                 if let Some(summary) = &plan.final_summary {
                                     hud_inner.append_chat_message(false, summary);
                                     let _ = voice_inner.speak(summary);
+                                    if summary.contains("Standing by on flight deck")
+                                        || summary.contains("Flight deck disengaged")
+                                    {
+                                        let win = window_inner.clone();
+                                        glib::timeout_add_local_once(
+                                            std::time::Duration::from_millis(1500),
+                                            move || {
+                                                win.close();
+                                            },
+                                        );
+                                    }
                                 }
                             }
                             Err(e) => {
@@ -180,11 +199,13 @@ impl TruniApp {
                 let hud_clone = hud.clone();
                 let voice_clone = voice.clone();
                 let agent_clone = agent.clone();
+                let window_clone = window.clone();
 
                 hud.voice_btn.connect_clicked(move |_| {
                     let hud_inner = hud_clone.clone();
                     let voice_inner = voice_clone.clone();
                     let agent_inner = agent_clone.clone();
+                    let window_inner = window_clone.clone();
 
                     glib::spawn_future_local(async move {
                         hud_inner.append_chat_message(false, "🎙️ Systems online. Listening...");
@@ -206,6 +227,17 @@ impl TruniApp {
                                         if let Some(summary) = &plan.final_summary {
                                             hud_inner.append_chat_message(false, summary);
                                             let _ = voice_inner.speak(summary);
+                                            if summary.contains("Standing by on flight deck")
+                                                || summary.contains("Flight deck disengaged")
+                                            {
+                                                let win = window_inner.clone();
+                                                glib::timeout_add_local_once(
+                                                    std::time::Duration::from_millis(1500),
+                                                    move || {
+                                                        win.close();
+                                                    },
+                                                );
+                                            }
                                         }
                                     }
                                 } else {
@@ -228,7 +260,7 @@ impl TruniApp {
                 key_ctrl.connect_key_pressed(move |_, key, _, _| {
                     match key {
                         Key::Escape => {
-                            window_clone.set_visible(!window_clone.is_visible());
+                            window_clone.close();
                             glib::Propagation::Stop
                         }
                         Key::F1 => {

@@ -321,3 +321,29 @@ scrollbar slider {
 scrollbar slider:hover {
     background: #00ff66;
 }
+
+/* ==============================================================================
+ * AVIONICS BULKHEAD SIDEBAR & GAUGE MODULES
+ * ============================================================================== */
+
+.bulkhead-sidebar {
+    background: linear-gradient(180deg, rgba(8, 16, 26, 0.95) 0%, rgba(4, 8, 14, 0.98) 100%);
+    border: 1px solid rgba(0, 255, 102, 0.28);
+    border-left: 3px solid #00ff66;
+    border-radius: 8px;
+    padding: 14px 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), inset 0 0 16px rgba(0, 255, 102, 0.04);
+}
+
+.gauge-card {
+    background: rgba(12, 22, 34, 0.85);
+    border: 1px solid rgba(0, 255, 102, 0.18);
+    border-left: 2px solid #00f0ff;
+    border-radius: 5px;
+    padding: 7px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #cbe3e7;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+

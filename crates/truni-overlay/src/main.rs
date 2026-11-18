@@ -26,8 +26,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Launch the primary TRUNI background daemon & overlay
+    /// Launch the primary TRUNI background daemon & overlay with voice wake
     Daemon,
+    /// Launch the continuous voice wake listener daemon
+    Wake,
     /// Launch the interactive Wayland GTK4 layer-shell overlay
     Overlay,
     /// Toggle overlay visibility via IPC
@@ -71,9 +73,32 @@ async fn main() -> Result<()> {
                 }
             });
 
+            // Start continuous wake-word detector daemon in background
+            let wake_bin = dirs::home_dir()
+                .map(|h| h.join(".local/bin/truni-wake-daemon"))
+                .unwrap_or_else(|| std::path::PathBuf::from("/home/venkatengineer/.local/bin/truni-wake-daemon"));
+
+            if wake_bin.exists() {
+                println!("🎙️ Engaging Background Voice Wake Listener ('TRUNI' / 'Hey TRUNI can you help me')...");
+                let _ = std::process::Command::new(&wake_bin)
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
+            }
+
             // Start GUI overlay
             let app = app::TruniApp::new(config, agent, telemetry, voice);
             app.run();
+        }
+        Commands::Wake => {
+            println!("🛸 Starting TRUNI Neural Voice Wake Daemon ('TRUNI' / 'Hey TRUNI can you help me')...");
+            let wake_bin = dirs::home_dir()
+                .map(|h| h.join(".local/bin/truni-wake-daemon"))
+                .unwrap_or_else(|| std::path::PathBuf::from("/home/venkatengineer/.local/bin/truni-wake-daemon"));
+
+            let status = std::process::Command::new(wake_bin)
+                .status()?;
+            std::process::exit(status.code().unwrap_or(0));
         }
         Commands::Overlay => {
             let memory = MemoryStore::open(&config.storage.db_path)?;
