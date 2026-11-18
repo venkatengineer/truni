@@ -48,14 +48,12 @@ impl PiperSynthesizer {
             bail!("Piper model not found at {:?}", self.model_path);
         }
 
-        // Piper generates raw wav on stdout: echo text | piper -m ... -c ... --output-raw | pw-play --rate 22050 --channels 1 --format s16
-        // Or generate wav file and play
-        let temp_wav = tempfile::Builder::new()
-            .prefix("truni_tts_")
-            .suffix(".wav")
-            .tempfile()?;
+        // Ensure PipeWire audio sink is unmuted
+        let _ = Command::new("wpctl")
+            .args(["set-mute", "@DEFAULT_AUDIO_SINK@", "0"])
+            .output();
 
-        let wav_path = temp_wav.path().to_path_buf();
+        let wav_path = std::env::temp_dir().join("truni_tts_playback.wav");
 
         let mut piper_child = Command::new("piper")
             .arg("-m")
@@ -96,6 +94,17 @@ impl PiperSynthesizer {
         let mut lock = self.current_playback.lock().unwrap();
         *lock = Some(play_child);
 
+        Ok(())
+    }
+
+    pub fn speak_blocking(&self, text: &str) -> Result<()> {
+        self.speak(text)?;
+        loop {
+            if !self.is_speaking() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
         Ok(())
     }
 }

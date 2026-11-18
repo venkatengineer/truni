@@ -65,6 +65,8 @@ impl TruniApp {
                 .decorated(false)
                 .build();
 
+            window.add_css_class("transparent-window");
+
             // Wayland Layer Shell Integration for Niri
             if gtk4_layer_shell::is_supported() {
                 use gtk4_layer_shell::LayerShell;
@@ -185,21 +187,29 @@ impl TruniApp {
                     let agent_inner = agent_clone.clone();
 
                     glib::spawn_future_local(async move {
-                        hud_inner.append_chat_message(false, "Systems online. Listening...");
-                        let _ = voice_inner.acknowledge_wake();
+                        hud_inner.append_chat_message(false, "🎙️ Systems online. Listening...");
+                        // Ensure PipeWire sink is unmuted
+                        let _ = std::process::Command::new("wpctl")
+                            .args(["set-mute", "@DEFAULT_AUDIO_SINK@", "0"])
+                            .output();
+                        let _ = voice_inner.speak("Systems online. Listening.");
+                        tokio::time::sleep(std::time::Duration::from_millis(1600)).await;
 
-                        match voice_inner.record_and_transcribe(4).await {
+                        match voice_inner.record_and_transcribe(5).await {
                             Ok(text) => {
-                                if !text.trim().is_empty() {
-                                    hud_inner.append_chat_message(true, &text);
+                                let trimmed = text.trim();
+                                if !trimmed.is_empty() {
+                                    hud_inner.append_chat_message(true, trimmed);
                                     hud_inner.switch_state(OverlayState::TaskExecution);
-                                    if let Ok(plan) = agent_inner.start_task(&text).await {
+                                    if let Ok(plan) = agent_inner.start_task(trimmed).await {
                                         hud_inner.update_task_plan(&plan);
                                         if let Some(summary) = &plan.final_summary {
                                             hud_inner.append_chat_message(false, summary);
                                             let _ = voice_inner.speak(summary);
                                         }
                                     }
+                                } else {
+                                    hud_inner.append_chat_message(false, "No speech detected.");
                                 }
                             }
                             Err(e) => {

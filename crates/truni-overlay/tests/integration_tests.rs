@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::fs;
 use tempfile::tempdir;
 use truni_agent::planner::{Intent, Planner};
 use truni_agent::AgentOrchestrator;

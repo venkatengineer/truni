@@ -1534,18 +1534,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "regex"
-version = "1.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9807af0e638c12e753aa1b4e601791bf2a8f71274023c8bbeec12fc149950857"
-dependencies = [
- "aho-corasick",
- "memchr",
- "regex-automata",
- "regex-syntax",
-]
-
-[[package]]
 name = "regex-automata"
 version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2300,14 +2288,9 @@ dependencies = [
 name = "truni-core"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "dirs",
  "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -2320,7 +2303,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
- "truni-core",
 ]
 
 [[package]]
@@ -2369,7 +2351,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "regex",
  "serde",
  "serde_json",
  "sysinfo",
@@ -2383,15 +2364,12 @@ name = "truni-tools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "reqwest",
  "serde",
  "serde_json",
- "tempfile",
  "tokio",
  "tracing",
  "truni-core",
- "truni-memory",
  "urlencoding",
  "walkdir",
 ]
@@ -2401,9 +2379,9 @@ name = "truni-voice"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "libc",
  "serde",
  "serde_json",
- "tempfile",
  "tokio",
  "tracing",
  "truni-core",

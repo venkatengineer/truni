@@ -88,7 +88,44 @@ async fn main() -> Result<()> {
             send_ipc_command(IpcCommand::ToggleOverlay).await?;
         }
         Commands::Voice => {
-            send_ipc_command(IpcCommand::StartVoiceListen).await?;
+            println!("🛸 TRUNI Voice Intelligence Initializing...");
+            let voice = VoiceService::new(&config.voice);
+
+            // Ensure PipeWire sink is unmuted
+            let _ = std::process::Command::new("wpctl")
+                .args(["set-mute", "@DEFAULT_AUDIO_SINK@", "0"])
+                .output();
+
+            println!("🔊 TRUNI: 'Systems online. Listening...'");
+            let _ = voice.speak("Systems online. Listening.");
+            tokio::time::sleep(std::time::Duration::from_millis(1600)).await;
+
+            println!("🎙️  [MICROPHONE ACTIVE — Speak your command now!] (Listening for 5 seconds)");
+            match voice.record_and_transcribe(5).await {
+                Ok(text) => {
+                    let trimmed = text.trim();
+                    if trimmed.is_empty() {
+                        println!("🛸 TRUNI: No speech input detected.");
+                        let _ = voice.speak("No speech detected.");
+                    } else {
+                        println!("\n🛰️ User Voice Input: \"{}\"", trimmed);
+                        println!("🧠 Engaging Autonomous Agent Orchestrator...");
+                        let memory = MemoryStore::open(&config.storage.db_path)?;
+                        let agent = AgentOrchestrator::new(&config, memory);
+                        let plan = agent.start_task(trimmed).await?;
+                        if let Some(summary) = &plan.final_summary {
+                            println!("\n🛸 TRUNI: {}\n", summary);
+                            let _ = voice.speak(summary);
+                            while voice.is_speaking() {
+                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Voice processing failure: {}", e);
+                }
+            }
         }
         Commands::Inspect => {
             send_ipc_command(IpcCommand::SetState(OverlayState::SpaceshipInspection)).await?;

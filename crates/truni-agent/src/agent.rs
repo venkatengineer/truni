@@ -7,7 +7,6 @@ use tokio::sync::Mutex;
 use truni_core::config::TruniConfig;
 use truni_core::events::{ApprovalRequest, StepStatus, TaskPlan};
 use truni_memory::MemoryStore;
-use truni_tools::bash::BashTool;
 use truni_tools::browser::BrowserTool;
 use truni_tools::filesystem::FilesystemTool;
 use truni_tools::security::SecurityManager;
@@ -18,6 +17,7 @@ use truni_telemetry::TelemetryCollector;
 pub struct AgentOrchestrator {
     llm: Arc<LlmClient>,
     memory: MemoryStore,
+    #[allow(dead_code)]
     security: Arc<SecurityManager>,
     browser: Arc<BrowserTool>,
     telemetry: Arc<Mutex<TelemetryCollector>>,

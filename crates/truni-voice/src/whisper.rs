@@ -46,10 +46,21 @@ impl WhisperTranscriber {
             {
                 continue;
             }
-            clean_text.push_str(trimmed);
+
+            // Remove noise tokens commonly hallucinated on silence
+            let cleaned_line = trimmed.to_string();
+            // Remove parenthetical noise like (dramatic music), (sigh), [music]
+            if (cleaned_line.starts_with('(') && cleaned_line.ends_with(')'))
+                || (cleaned_line.starts_with('[') && cleaned_line.ends_with(']'))
+            {
+                continue;
+            }
+
+            clean_text.push_str(&cleaned_line);
             clean_text.push(' ');
         }
 
-        Ok(clean_text.trim().to_string())
+        let result = clean_text.trim().to_string();
+        Ok(result)
     }
 }

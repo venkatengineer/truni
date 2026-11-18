@@ -11,10 +11,13 @@ use truni_core::config::VoiceConfig;
 
 #[derive(Clone)]
 pub struct VoiceService {
+    #[allow(dead_code)]
     config: VoiceConfig,
     whisper: Arc<WhisperTranscriber>,
     piper: Arc<PiperSynthesizer>,
+    #[allow(dead_code)]
     wake_detector: Arc<Mutex<WakeWordDetector>>,
+    #[allow(dead_code)]
     vad: Arc<Mutex<VadDetector>>,
     recording_process: Arc<Mutex<Option<Child>>>,
     is_listening: Arc<Mutex<bool>>,
@@ -57,17 +60,19 @@ impl VoiceService {
         self.piper.speak(text)
     }
 
+    pub fn speak_blocking(&self, text: &str) -> Result<()> {
+        self.piper.speak_blocking(text)
+    }
+
     pub fn acknowledge_wake(&self) -> Result<()> {
         self.speak("Systems online. How can I help?")
     }
 
     pub async fn record_and_transcribe(&self, max_duration_secs: u64) -> Result<String> {
-        let temp_wav = tempfile::Builder::new()
-            .prefix("truni_rec_")
-            .suffix(".wav")
-            .tempfile()?;
-
-        let wav_path = temp_wav.path().to_path_buf();
+        let wav_path = std::env::temp_dir().join("truni_mic_capture.wav");
+        if wav_path.exists() {
+            let _ = std::fs::remove_file(&wav_path);
+        }
 
         {
             let mut listening_lock = self.is_listening.lock().unwrap();
@@ -111,7 +116,7 @@ impl VoiceService {
             .stderr(Stdio::null())
             .spawn();
 
-        let mut child = match child {
+        let child = match child {
             Ok(c) => c,
             Err(e) => {
                 let mut listening_lock = self.is_listening.lock().unwrap();
@@ -122,18 +127,37 @@ impl VoiceService {
 
         {
             let mut rec_lock = self.recording_process.lock().unwrap();
-            *rec_lock = None;
+            *rec_lock = Some(child);
         }
 
-        // Wait for max_duration_secs or until user stops speaking
+        // Wait for max_duration_secs while recording
         sleep(Duration::from_secs(max_duration_secs)).await;
 
-        let _ = child.kill();
-        let _ = child.wait();
+        // Cleanly stop recording with SIGINT so WAV header is properly closed
+        {
+            let mut rec_lock = self.recording_process.lock().unwrap();
+            if let Some(mut child) = rec_lock.take() {
+                unsafe {
+                    libc::kill(child.id() as i32, libc::SIGINT);
+                }
+                let _ = child.wait();
+            }
+        }
 
         {
             let mut listening_lock = self.is_listening.lock().unwrap();
             *listening_lock = false;
+        }
+
+        // Verify audio file exists and has data
+        if !wav_path.exists() {
+            bail!("Audio capture failed: no output file generated at {:?}", wav_path);
+        }
+
+        let metadata = std::fs::metadata(&wav_path)?;
+        if metadata.len() < 1024 {
+            // Empty or virtually silent audio
+            return Ok(String::new());
         }
 
         // Transcribe with Whisper
@@ -144,7 +168,10 @@ impl VoiceService {
     pub fn cancel_recording(&self) {
         let mut rec_lock = self.recording_process.lock().unwrap();
         if let Some(mut child) = rec_lock.take() {
-            let _ = child.kill();
+            unsafe {
+                libc::kill(child.id() as i32, libc::SIGINT);
+            }
+            let _ = child.wait();
         }
         let mut listening_lock = self.is_listening.lock().unwrap();
         *listening_lock = false;

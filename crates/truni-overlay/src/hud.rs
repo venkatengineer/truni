@@ -3,6 +3,7 @@ use gtk4::prelude::*;
 use gtk4::{Box as GtkBox, Button, Entry, Label, Orientation, ScrolledWindow, Stack};
 use truni_core::events::{OverlayState, StepStatus, TaskPlan, TelemetrySnapshot};
 
+#[allow(dead_code)]
 pub struct HudUI {
     pub root_box: GtkBox,
     pub stack: Stack,
@@ -39,13 +40,14 @@ impl HudUI {
     pub fn new() -> Self {
         let root_box = GtkBox::builder()
             .orientation(Orientation::Vertical)
-            .spacing(8)
+            .spacing(10)
             .margin_top(12)
             .margin_bottom(12)
             .margin_start(16)
             .margin_end(16)
             .hexpand(true)
             .vexpand(true)
+            .css_classes(["solaris-glass-deck"])
             .build();
 
         // Top Navigation Bar
@@ -55,7 +57,7 @@ impl HudUI {
             .build();
 
         let title_lbl = Label::builder()
-            .label("🛸 TRUNI // SOLARIS SPATIAL AI")
+            .label("🛸 TRUNI // SOLARIS SPATIAL COMMAND")
             .css_classes(["hud-header"])
             .hexpand(true)
             .xalign(0.0)
@@ -66,10 +68,10 @@ impl HudUI {
         let nav_task_btn = Button::with_label("TASKS [F3]");
         let nav_ship_btn = Button::with_label("3D SHIP [F4]");
 
-        nav_standby_btn.add_css_class("hud-pill");
-        nav_conv_btn.add_css_class("hud-pill");
-        nav_task_btn.add_css_class("hud-pill");
-        nav_ship_btn.add_css_class("hud-pill-amber");
+        nav_standby_btn.add_css_class("hud-nav-btn");
+        nav_conv_btn.add_css_class("hud-nav-btn");
+        nav_task_btn.add_css_class("hud-nav-btn");
+        nav_ship_btn.add_css_class("hud-nav-btn-ship");
 
         nav_box.append(&title_lbl);
         nav_box.append(&nav_standby_btn);
@@ -158,6 +160,12 @@ impl HudUI {
         let chip4 = Button::with_label("🛰️ Connected Devices");
         let chip5 = Button::with_label("⚛️ Quantum Computing");
 
+        chip1.add_css_class("hud-chip");
+        chip2.add_css_class("hud-chip");
+        chip3.add_css_class("hud-chip");
+        chip4.add_css_class("hud-chip");
+        chip5.add_css_class("hud-chip");
+
         chips_box.append(&chip1);
         chips_box.append(&chip2);
         chips_box.append(&chip3);
@@ -173,11 +181,14 @@ impl HudUI {
         let input_entry = Entry::builder()
             .placeholder_text("Ask TRUNI or assign computer tasks...")
             .hexpand(true)
+            .css_classes(["hud-input"])
             .build();
 
         let send_btn = Button::with_label("TRANSMIT");
+        send_btn.add_css_class("hud-btn-transmit");
+
         let voice_btn = Button::with_label("🎙️ VOICE");
-        voice_btn.add_css_class("hud-pill-green");
+        voice_btn.add_css_class("hud-btn-voice");
 
         input_box.append(&input_entry);
         input_box.append(&voice_btn);
