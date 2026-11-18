@@ -30,6 +30,16 @@ struct OllamaChatResponse {
     message: ChatMessagePayload,
 }
 
+#[derive(Debug, Deserialize)]
+struct OllamaTagsResponse {
+    models: Vec<OllamaModelItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OllamaModelItem {
+    name: String,
+}
+
 pub struct LlmClient {
     client: Client,
     config: AiConfig,
@@ -45,13 +55,30 @@ impl LlmClient {
         Self { client, config }
     }
 
+    async fn detect_best_model(&self) -> String {
+        let tags_url = format!("{}/api/tags", self.config.base_url.trim_end_matches('/'));
+        if let Ok(resp) = self.client.get(&tags_url).timeout(Duration::from_millis(800)).send().await {
+            if let Ok(tags) = resp.json::<OllamaTagsResponse>().await {
+                let model_names: Vec<String> = tags.models.into_iter().map(|m| m.name.to_lowercase()).collect();
+                // Priority preference: 7b/8b models if present, else fallback to 1.5b
+                for candidate in ["qwen2.5:7b", "llama3.1:8b", "mistral:latest", "qwen2.5-coder:7b", "qwen2.5:3b"] {
+                    if model_names.iter().any(|m| m.contains(candidate)) {
+                        return candidate.to_string();
+                    }
+                }
+            }
+        }
+        self.config.model.clone()
+    }
+
     pub async fn chat(&self, messages: &[ChatMessagePayload]) -> Result<String> {
         let url = format!("{}/api/chat", self.config.base_url.trim_end_matches('/'));
+        let selected_model = self.detect_best_model().await;
 
         let keep_alive = format!("{}s", self.config.unload_after_secs);
 
         let req = OllamaChatRequest {
-            model: self.config.model.clone(),
+            model: selected_model,
             messages: messages.to_vec(),
             stream: false,
             options: Some(OllamaOptions {

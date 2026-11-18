@@ -19,6 +19,7 @@ pub struct AgentOrchestrator {
     llm: Arc<LlmClient>,
     memory: MemoryStore,
     security: Arc<SecurityManager>,
+    #[allow(dead_code)]
     browser: Arc<BrowserTool>,
     telemetry: Arc<Mutex<TelemetryCollector>>,
     active_plan: Arc<Mutex<Option<TaskPlan>>>,
@@ -48,7 +49,7 @@ impl AgentOrchestrator {
 
     pub async fn start_task(&self, prompt: &str) -> Result<TaskPlan> {
         let task_id = format!("task_{}", chrono::Utc::now().timestamp_millis());
-        let mut plan = Planner::create_plan_dynamic(&self.llm, &task_id, prompt).await;
+        let mut plan = Planner::create_plan(&task_id, prompt);
 
         self.memory.record_task(&task_id, prompt, "In Progress")?;
 
@@ -124,29 +125,64 @@ impl AgentOrchestrator {
                     plan.current_step += 1;
                     return Ok(());
                 }
-                "browser_open" | "open" => {
-                    let mut url = command.trim().to_string();
-                    if !url.starts_with("http://") && !url.starts_with("https://") && !url.starts_with("file://") {
-                        if url.contains("google.com") || url.contains("youtube.com") || url.contains("github.com") {
-                            url = format!("https://{}", url);
-                        } else if url.contains("google") && !url.contains(" ") {
-                            url = "https://www.google.com".to_string();
-                        } else {
-                            // If it's a search or music request
-                            if plan.prompt.to_lowercase().contains("play") || plan.prompt.to_lowercase().contains("song") || plan.prompt.to_lowercase().contains("music") {
-                                url = format!("https://www.youtube.com/results?search_query={}", urlencoding::encode(&url));
-                            } else {
-                                url = format!("https://www.google.com/search?q={}", urlencoding::encode(&url));
-                            }
-                        }
-                    }
+                "direct_ai" => {
+                    let messages = vec![
+                        ChatMessagePayload {
+                            role: "system".to_string(),
+                            content: "You are TRUNI, an advanced onboard spacecraft intelligence and Linux desktop assistant. Answer the user's inquiry with calm aerospace authority, factual precision, and helpfulness. Never mention opening browser links unless directly requested. Provide direct explanations or code.".to_string(),
+                        },
+                        ChatMessagePayload {
+                            role: "user".to_string(),
+                            content: plan.prompt.clone(),
+                        },
+                    ];
 
-                    let _ = TokioCommand::new("xdg-open")
-                        .arg(&url)
-                        .spawn();
+                    let answer = match self.llm.chat(&messages).await {
+                        Ok(res) if !res.trim().is_empty() => res.trim().to_string(),
+                        _ => "Intelligence core online. Ready for command.".to_string(),
+                    };
 
-                    plan.steps[step_idx].log = Some(format!("Launched desktop browser: {}", url));
+                    plan.steps[step_idx].log = Some("Intelligence synthesis complete.".to_string());
                     plan.steps[step_idx].status = StepStatus::Completed;
+                    plan.final_summary = Some(answer.clone());
+                    plan.current_step += 1;
+                    self.memory.finish_task(&plan.task_id, "Completed", Some(&answer))?;
+                    return Ok(());
+                }
+                "app_launch" => {
+                    let target = command.trim();
+                    let (cmd, app_name) = if target.contains("terminal") || target.contains("console") || target.contains("kitty") {
+                        ("kitty", "Kitty Terminal")
+                    } else if target.contains("code") || target.contains("editor") || target.contains("ide") {
+                        ("code", "Visual Studio Code")
+                    } else if target.contains("files") || target.contains("file manager") || target.contains("nautilus") {
+                        ("nautilus", "Nautilus File Manager")
+                    } else if target.contains("xdg-open") {
+                        ("xdg-open", "Default Web Browser")
+                    } else {
+                        (target, target)
+                    };
+
+                    let spawned = TokioCommand::new(cmd).spawn();
+                    if spawned.is_ok() {
+                        plan.steps[step_idx].log = Some(format!("Launched {} on desktop.", app_name));
+                        plan.steps[step_idx].status = StepStatus::Completed;
+                        plan.final_summary = Some(format!("Launched {} on your Wayland desktop.", app_name));
+                    } else {
+                        plan.steps[step_idx].log = Some(format!("Could not spawn '{}'.", cmd));
+                        plan.steps[step_idx].status = StepStatus::Failed;
+                        plan.final_summary = Some(format!("Could not launch application '{}'. Check that it is installed.", app_name));
+                    }
+                }
+                "web_open" => {
+                    let mut url = command.trim().to_string();
+                    if !url.starts_with("http://") && !url.starts_with("https://") {
+                        url = format!("https://{}", url);
+                    }
+                    let _ = TokioCommand::new("xdg-open").arg(&url).spawn();
+                    plan.steps[step_idx].log = Some(format!("Opened in desktop browser: {}", url));
+                    plan.steps[step_idx].status = StepStatus::Completed;
+                    plan.final_summary = Some(format!("Opened {} in your default browser.", url));
                 }
                 "bash" => {
                     let risk = self.security.assess_command(&command);
@@ -190,25 +226,8 @@ impl AgentOrchestrator {
                         }
                     }
                 }
-                "web_search" | "browser_search" => {
-                    match self.browser.search(&command).await {
-                        Ok(results) => {
-                            let mut snippet_summary = String::new();
-                            for (_q, snippet) in results.iter().take(4) {
-                                snippet_summary.push_str(snippet);
-                                snippet_summary.push(' ');
-                            }
-                            plan.steps[step_idx].status = StepStatus::Completed;
-                            plan.steps[step_idx].log = Some(format!("Web Intelligence Harvested: {}", snippet_summary.trim()));
-                        }
-                        Err(e) => {
-                            plan.steps[step_idx].status = StepStatus::Failed;
-                            plan.steps[step_idx].log = Some(format!("Search failed: {}", e));
-                        }
-                    }
-                }
-                "fs_search" | "filesystem_search" => {
-                    let search_term = command.replace("find", "").replace("search", "").trim().to_string();
+                "fs_search" => {
+                    let search_term = command.replace("find", "").replace("search", "").replace("file", "").replace("my", "").trim().to_string();
                     match FilesystemTool::search_files(&home, &search_term, 6) {
                         Ok(matches) => {
                             plan.steps[step_idx].status = StepStatus::Completed;
@@ -243,7 +262,7 @@ impl AgentOrchestrator {
                         plan.steps[step_idx].log = Some(format!("Target directory {:?} does not exist.", target_dir));
                     }
                 }
-                "telemetry" | "telemetry_diagnose" => {
+                "telemetry" => {
                     let snap = {
                         let mut coll = self.telemetry.lock().await;
                         coll.snapshot()
@@ -280,7 +299,6 @@ impl AgentOrchestrator {
                     plan.steps[step_idx].status = StepStatus::Completed;
                 }
                 _ => {
-                    // General tool or fallback
                     plan.steps[step_idx].log = Some(format!("Executed operation: {}", command));
                     plan.steps[step_idx].status = StepStatus::Completed;
                 }
@@ -301,8 +319,8 @@ impl AgentOrchestrator {
             let summary_prompt = format!(
                 "You are TRUNI, a spatial spaceship intelligence onboard computer operating a Linux desktop.\n\
                  User request: {}\n\
-                 Actual tool actions and findings:\n{}\n\
-                 Provide a direct, natural, authoritative 1-3 sentence summary explaining what was executed and the result. If a website or music was opened in the browser, confirm it clearly. Never fabricate data.",
+                 Actual actions and tool findings:\n{}\n\
+                 Provide a direct, natural, authoritative 1-3 sentence response communicating the exact outcome. Never fabricate data or say you opened a link unless you actually did.",
                 plan.prompt, step_context
             );
 
@@ -320,7 +338,6 @@ impl AgentOrchestrator {
             let summary = match self.llm.chat(&messages).await {
                 Ok(res) if !res.trim().is_empty() => res.trim().to_string(),
                 _ => {
-                    // Fallback synthesis from actual step logs
                     if let Some(first_log) = plan.steps.first().and_then(|s| s.log.as_deref()) {
                         format!("Task completed. {}", first_log)
                     } else {
