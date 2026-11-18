@@ -79,6 +79,14 @@ impl VoiceService {
             *listening_lock = true;
         }
 
+        // Ensure PipeWire microphone source is unmuted and at optimal gain
+        let _ = Command::new("wpctl")
+            .args(["set-mute", "@DEFAULT_AUDIO_SOURCE@", "0"])
+            .output();
+        let _ = Command::new("wpctl")
+            .args(["set-volume", "@DEFAULT_AUDIO_SOURCE@", "1.0"])
+            .output();
+
         // Use pw-record (PipeWire) or arecord (ALSA) to capture 16kHz mono WAV
         let (rec_cmd, args) = if which_cmd("pw-record") {
             (

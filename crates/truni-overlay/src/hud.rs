@@ -50,10 +50,11 @@ impl HudUI {
             .css_classes(["solaris-glass-deck"])
             .build();
 
-        // Top Navigation Bar
+        // Top Navigation Bar (Canopy Rail)
         let nav_box = GtkBox::builder()
             .orientation(Orientation::Horizontal)
             .spacing(8)
+            .css_classes(["cockpit-top-rail"])
             .build();
 
         let title_lbl = Label::builder()
@@ -63,10 +64,15 @@ impl HudUI {
             .xalign(0.0)
             .build();
 
-        let nav_standby_btn = Button::with_label("STANDBY [F1]");
-        let nav_conv_btn = Button::with_label("COMM [F2]");
-        let nav_task_btn = Button::with_label("TASKS [F3]");
-        let nav_ship_btn = Button::with_label("3D SHIP [F4]");
+        let core_status_lbl = Label::builder()
+            .label("⬡ CORE: ONLINE")
+            .css_classes(["hud-pill-green"])
+            .build();
+
+        let nav_conv_btn = Button::with_label("⬡ COMM DECK [F2]");
+        let nav_task_btn = Button::with_label("⬡ MISSION OPS [F3]");
+        let nav_ship_btn = Button::with_label("⬡ 3D STARSHIP [F4]");
+        let nav_standby_btn = Button::with_label("⬡ STANDBY [F1]");
 
         nav_standby_btn.add_css_class("hud-nav-btn");
         nav_conv_btn.add_css_class("hud-nav-btn");
@@ -74,10 +80,11 @@ impl HudUI {
         nav_ship_btn.add_css_class("hud-nav-btn-ship");
 
         nav_box.append(&title_lbl);
-        nav_box.append(&nav_standby_btn);
+        nav_box.append(&core_status_lbl);
         nav_box.append(&nav_conv_btn);
         nav_box.append(&nav_task_btn);
         nav_box.append(&nav_ship_btn);
+        nav_box.append(&nav_standby_btn);
 
         root_box.append(&nav_box);
 
@@ -184,10 +191,10 @@ impl HudUI {
             .css_classes(["hud-input"])
             .build();
 
-        let send_btn = Button::with_label("TRANSMIT");
+        let send_btn = Button::with_label("⚡ TRANSMIT");
         send_btn.add_css_class("hud-btn-transmit");
 
-        let voice_btn = Button::with_label("🎙️ VOICE");
+        let voice_btn = Button::with_label("🎙️ COMM VOICE");
         voice_btn.add_css_class("hud-btn-voice");
 
         input_box.append(&input_entry);

@@ -59,7 +59,7 @@ impl TruniApp {
 
             let window = ApplicationWindow::builder()
                 .application(application)
-                .title("TRUNI // SOLARIS SPATIAL COMMAND")
+                .title("Solaris TRUNI Spatial Command")
                 .default_width(config.overlay.width)
                 .default_height(config.overlay.height)
                 .decorated(false)

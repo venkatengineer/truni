@@ -61,6 +61,24 @@ impl Default for TruniConfig {
             .unwrap_or_else(|| PathBuf::from("/home/venkatengineer"))
             .join(".local/share/truni");
 
+        let whisper_model = {
+            let p1 = base_dir.join("models/whisper/ggml-tiny.en.bin");
+            let p2 = PathBuf::from("/mnt/d/truni/models/whisper/ggml-tiny.en.bin");
+            if p1.exists() { p1 } else { p2 }
+        };
+
+        let piper_model = {
+            let p1 = base_dir.join("models/piper/en_US-lessac-medium.onnx");
+            let p2 = PathBuf::from("/mnt/d/truni/models/piper/en_US-lessac-medium.onnx");
+            if p1.exists() { p1 } else { p2 }
+        };
+
+        let piper_config = {
+            let p1 = base_dir.join("models/piper/en_US-lessac-medium.onnx.json");
+            let p2 = PathBuf::from("/mnt/d/truni/models/piper/en_US-lessac-medium.onnx.json");
+            if p1.exists() { p1 } else { p2 }
+        };
+
         Self {
             ai: AiConfig {
                 provider: "ollama".to_string(),
@@ -75,9 +93,9 @@ impl Default for TruniConfig {
                 wake_word: "TRUNI".to_string(),
                 sensitivity: 0.5,
                 push_to_talk: true,
-                whisper_model_path: PathBuf::from("/mnt/d/truni/models/whisper/ggml-tiny.en.bin"),
-                piper_model_path: PathBuf::from("/mnt/d/truni/models/piper/en_US-lessac-medium.onnx"),
-                piper_config_path: PathBuf::from("/mnt/d/truni/models/piper/en_US-lessac-medium.onnx.json"),
+                whisper_model_path: whisper_model,
+                piper_model_path: piper_model,
+                piper_config_path: piper_config,
                 audio_device: None,
                 silence_threshold_secs: 1.5,
             },
