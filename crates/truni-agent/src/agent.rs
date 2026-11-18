@@ -47,14 +47,86 @@ impl AgentOrchestrator {
         lock.clone()
     }
 
+    pub fn extract_and_learn_facts(&self, prompt: &str) {
+        let p_lower = prompt.to_lowercase();
+
+        // 1. Learn user identity / name
+        if let Some(pos) = p_lower.find("my name is ") {
+            let remainder = &prompt[pos + 11..];
+            let name = remainder.split_whitespace().next().unwrap_or("").trim_matches(|c: char| !c.is_alphabetic());
+            if !name.is_empty() {
+                let _ = self.memory.learn_fact("user_name", "identity", &format!("User's name is {}", name));
+            }
+        } else if let Some(pos) = p_lower.find("call me ") {
+            let remainder = &prompt[pos + 8..];
+            let name = remainder.split_whitespace().next().unwrap_or("").trim_matches(|c: char| !c.is_alphabetic());
+            if !name.is_empty() {
+                let _ = self.memory.learn_fact("user_name", "identity", &format!("User's name is {}", name));
+            }
+        }
+
+        // 2. Learn terminal preference
+        if p_lower.contains("terminal") || p_lower.contains("cli") {
+            if p_lower.contains("kitty") {
+                let _ = self.memory.learn_fact("pref_terminal", "preference", "User prefers Kitty terminal for CLI workflows");
+            } else if p_lower.contains("alacritty") {
+                let _ = self.memory.learn_fact("pref_terminal", "preference", "User prefers Alacritty terminal for CLI workflows");
+            }
+        }
+
+        // 3. Learn editor preference
+        if p_lower.contains("editor") || p_lower.contains("ide") {
+            if p_lower.contains("code") || p_lower.contains("vscode") {
+                let _ = self.memory.learn_fact("pref_editor", "preference", "User prefers VS Code as primary development environment");
+            } else if p_lower.contains("nvim") || p_lower.contains("neovim") {
+                let _ = self.memory.learn_fact("pref_editor", "preference", "User prefers Neovim as primary development environment");
+            }
+        }
+
+        // 4. Learn desktop / OS preference
+        if p_lower.contains("solaris") || p_lower.contains("niri") {
+            let _ = self.memory.learn_fact("desktop_env", "system", "User operates Solaris OS running the Niri Wayland compositor");
+        }
+
+        // 5. Explicit user notes ("remember that ...")
+        if p_lower.contains("remember that ") || p_lower.contains("remember ") {
+            let fact = prompt.replace("remember that", "").replace("remember", "").trim().to_string();
+            if !fact.is_empty() {
+                let key = format!("note_{}", chrono::Utc::now().timestamp_millis());
+                let _ = self.memory.learn_fact(&key, "user_note", &fact);
+            }
+        }
+    }
+
     pub async fn start_task(&self, prompt: &str) -> Result<TaskPlan> {
         let task_id = format!("task_{}", chrono::Utc::now().timestamp_millis());
         let mut plan = Planner::create_plan(&task_id, prompt);
 
         self.memory.record_task(&task_id, prompt, "In Progress")?;
+        let _ = self.memory.record_turn("user", prompt);
+
+        // Learn facts and preferences from what the user says
+        self.extract_and_learn_facts(prompt);
 
         // Execute steps sequentially
         self.run_plan_steps(&mut plan).await?;
+
+        // Learn from the experience of this execution
+        let outcome = if plan.steps.iter().any(|s| s.status == StepStatus::Failed) {
+            "failure"
+        } else {
+            "success"
+        };
+        let action_summary = plan.steps.first().map(|s| s.title.as_str()).unwrap_or("Task executed");
+        let insight = plan.final_summary.as_deref().unwrap_or("Action completed");
+        let _ = self.memory.record_experience(&plan.prompt, prompt, action_summary, outcome, insight);
+
+        if let Some(summary) = &plan.final_summary {
+            let _ = self.memory.record_turn("assistant", summary);
+        }
+
+        // Auto-compact database to guarantee tiny disk footprint (<1MB)
+        let _ = self.memory.compact_and_vacuum();
 
         let mut lock = self.active_plan.lock().await;
         *lock = Some(plan.clone());
@@ -81,7 +153,6 @@ impl AgentOrchestrator {
                     )?;
 
                     if approved {
-                        // Mark current step as running and continue
                         let curr = plan.current_step;
                         if curr < plan.steps.len() {
                             plan.steps[curr].status = StepStatus::Completed;
@@ -126,10 +197,20 @@ impl AgentOrchestrator {
                     return Ok(());
                 }
                 "direct_ai" => {
+                    let mem_ctx = self.memory.get_system_memory_context(&plan.prompt);
+                    let sys_content = if mem_ctx.is_empty() {
+                        "You are TRUNI, an onboard spacecraft AI and Linux desktop assistant. Answer the user with calm aerospace authority, factual precision, and technical clarity. Never mention opening browser links unless directly asked.".to_string()
+                    } else {
+                        format!(
+                            "You are TRUNI, an onboard spacecraft AI and Linux desktop assistant. Answer the user with calm aerospace authority, factual precision, and technical clarity.\n\n[PERSISTENT EXPERIENTIAL MEMORY & LEARNED FACTS]:\n{}\n(Use this learned memory naturally to personalize your response).",
+                            mem_ctx
+                        )
+                    };
+
                     let messages = vec![
                         ChatMessagePayload {
                             role: "system".to_string(),
-                            content: "You are TRUNI, an advanced onboard spacecraft intelligence and Linux desktop assistant. Answer the user's inquiry with calm aerospace authority, factual precision, and helpfulness. Never mention opening browser links unless directly requested. Provide direct explanations or code.".to_string(),
+                            content: sys_content,
                         },
                         ChatMessagePayload {
                             role: "user".to_string(),
@@ -307,7 +388,7 @@ impl AgentOrchestrator {
             plan.current_step += 1;
         }
 
-        // Final summary generation with LLM based on actual executed findings
+        // Final summary generation with LLM based on actual executed findings and memory
         if plan.final_summary.is_none() {
             let mut step_context = String::new();
             for step in &plan.steps {
@@ -316,13 +397,25 @@ impl AgentOrchestrator {
                 }
             }
 
-            let summary_prompt = format!(
-                "You are TRUNI, a spatial spaceship intelligence onboard computer operating a Linux desktop.\n\
-                 User request: {}\n\
-                 Actual actions and tool findings:\n{}\n\
-                 Provide a direct, natural, authoritative 1-3 sentence response communicating the exact outcome. Never fabricate data or say you opened a link unless you actually did.",
-                plan.prompt, step_context
-            );
+            let mem_ctx = self.memory.get_system_memory_context(&plan.prompt);
+            let summary_prompt = if mem_ctx.is_empty() {
+                format!(
+                    "You are TRUNI, a spatial spaceship intelligence onboard computer operating a Linux desktop.\n\
+                     User request: {}\n\
+                     Actual actions and tool findings:\n{}\n\
+                     Provide a direct, natural, authoritative 1-3 sentence response communicating the exact outcome. Never fabricate data or say you opened a link unless you actually did.",
+                    plan.prompt, step_context
+                )
+            } else {
+                format!(
+                    "You are TRUNI, a spatial spaceship intelligence onboard computer operating a Linux desktop.\n\
+                     Learned user profile & context:\n{}\n\
+                     User request: {}\n\
+                     Actual actions and tool findings:\n{}\n\
+                     Provide a direct, natural, authoritative 1-3 sentence response communicating the exact outcome. Never fabricate data or say you opened a link unless you actually did.",
+                    mem_ctx, plan.prompt, step_context
+                )
+            };
 
             let messages = vec![
                 ChatMessagePayload {
